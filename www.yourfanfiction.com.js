@@ -12,10 +12,8 @@
  * - URL changes
  * - YFF does not open TOC for single chapter stories, therefore index=1 must
  *    be added to the request string
- * - Date format is DD MMM YYYY, instead of MMMMM DD, YYYY
- * - Fixed some formatting to match the comments. Date now uses `-` separators,
- *    not `/`, which could potentially cause an issue with filenames. storyStatus
- *    now uses "In Progress", as defined by the comments, not "WIP".
+ * - Date format is DD MMM YYYY, instead of MMMM DD, YYYY
+ * - storyStatus now uses "In Progress", as defined by the comments, not "WIP".
  * - Made sure parseInt() will not bug on leading zero by specifying base 10
  *    (stupid JavaScript)
  * - YFF doesn't seem to use the `STARTXXXFICSAVERS` comments, so used another
@@ -24,7 +22,7 @@
  * - [BUGGED] Added &ageconsent=ok&warning=5 to request strings to bypass content filters
  *
  * * *
- * This plugin is not affiliated in any way with YourFanfiction nor
+ * This plugin's author is not affiliated in any way with YourFanfiction nor
  * FanFictionDownloader.
  *
  */
@@ -75,14 +73,14 @@ function analyseContent(sourceCode) {
 		return true;
 	}
 	
-	/*contentFilterSid = sourceCode.match(/class='errortext'>Age Consent Required<br \/><a href='viewstory\.php\?sid=(\d+)&amp;ageconsent=ok&amp;warning=\d+'>Ages 18\+ - Contains explicit content for mature adults only\.<\/a>/)[1];
+	contentFilterSid = sourceCode.match(/class='errortext'>Age Consent Required<br \/><a href='viewstory\.php\?sid=(\d+)&amp;ageconsent=ok&amp;warning=\d+'>Ages 18\+ - Contains explicit content for mature adults only\.<\/a>/)[1];
 	if (contentFilterSid)
 	{
 		// Content filter. Need to bypass it.
 		var sid = sourceCode.match(/<div id="pagetitle"><a href="viewstory.php\?sid=(\d+)">/m)[1];
 		linkAdditionInfo = "http://www.yourfanfiction.com/viewstory.php?sid=" + contentFilterSid + "&index=1&ageconsent=ok&warning=5";
 		return true;
-	}*/
+	}
 	
 	return analyseIndex(sourceCode);
 }
@@ -119,10 +117,10 @@ function analyseIndex(sourceCode)
 	//Category
 	category = cats.join(',');
 
-	//Updated '02-20-12';
+	//Updated '02/20/12';
 	result = sourceCode.match(/<span class="label">Updated:<\/span> (\d+ \w+ \d+)/);
 	var udate = new Date(result[1]);
-	lastUpdated = '' + zeropad(udate.getMonth() + 1, 2) + '-' + zeropad(udate.getDate(), 2) + '-' + udate.getFullYear();
+	lastUpdated = '' + zeropad(udate.getMonth() + 1, 2) + '/' + zeropad(udate.getDate(), 2) + '/' + udate.getFullYear();
 		
 	//Storystatus
 	result = sourceCode.search(/<span class="label">Completed:<\/span> Yes/);
@@ -140,16 +138,16 @@ function analyseIndex(sourceCode)
 	countOfChapters = parseInt(sourceCode.match( /<span class="label">Chapters: <\/span> (\d+)/ )[1], 10);
 
 	//Summary
-	summary = sourceCode.match(/<span class="label">Summary: <\/span><p>([\s\S]+?)<\/p>/)[1];
+	summary = sourceCode.match(/<span class="label">Summary: <\/span>([\s\S]+?)<br \/>\s*<span/)[1];
    
 	//Storylink (Always to the first chapter)
-	storyLink = "http://www.yourfanfiction.com/viewstory.php?sid=" + storyid + "&chapter=1";//&ageconsent=ok&warning=5";
+	storyLink = "http://www.yourfanfiction.com/viewstory.php?sid=" + storyid + "&chapter=1&ageconsent=ok&warning=5";
   
 	pat = /<b>\d+\. <a href="(viewstory\.php\?sid=\d+&amp;chapter=\d+)">([^<]+)</mg;
 	while( result = pat.exec( sourceCode ) )
 	{
 		chapterNames.push(result[2]);
-		chapterLinks.push("http://www.yourfanfiction.com/" + result[1].replace('&amp;', '&')/* + "&ageconsent=ok&warning=5"*/);
+		chapterLinks.push("http://www.yourfanfiction.com/" + result[1].replace('&amp;', '&') + "&ageconsent=ok&warning=5");
 	}
 
    return true;
@@ -169,13 +167,13 @@ function analyseChapter(sourceCode) {
 	chapterText = '';
 	
 	// Include author's notes
-	chapterText += sourceCode.match(/<div class='notes'>([\s\S]*?)<\/div>\s+<div id="story">/im)[1];
+	chapterText += sourceCode.match(/<div class='notes'>([\s\S]*?)<\/div>\s*<div id="story">/im)[1];
 	
 	if (chapterText != '')
 		chapterText += '<hr />';
 
 	//Chaptertext
-	chapterText += sourceCode.match(/<div id="story">([\s\S]*?)<\/div>\s+<div id="prev">/im)[1];
+	chapterText += sourceCode.match(/<div id="story">([\s\S]*?)<\/div>\s*<div id="prev">/im)[1];
 
 	return true;
 }

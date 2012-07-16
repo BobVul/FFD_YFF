@@ -19,7 +19,9 @@
  * - YFF doesn't seem to use the `STARTXXXFICSAVERS` comments, so used another
  *    way to find content
  * - Added author's notes block from outside story block
- * - [BUGGED] Added &ageconsent=ok&warning=5 to request strings to bypass content filters
+ * - Added &ageconsent=ok&warning=5 to request strings to bypass content filters
+ * - Added try..catch blocks to prevent functions from quitting early in case of
+ *    RegEx match failure
  *
  * * *
  * This plugin's author is not affiliated in any way with YourFanfiction nor
@@ -73,11 +75,10 @@ function analyseContent(sourceCode) {
 		return true;
 	}
 	
-	contentFilterSid = sourceCode.match(/class='errortext'>Age Consent Required<br \/><a href='viewstory\.php\?sid=(\d+)&amp;ageconsent=ok&amp;warning=\d+'>Ages 18\+ - Contains explicit content for mature adults only\.<\/a>/)[1];
-	if (contentFilterSid)
+	if (sourceCode.match(/class='errortext'>Age Consent Required<br \/><a href='viewstory\.php\?sid=(\d+)&amp;ageconsent=ok&amp;warning=\d+'>Ages 18\+ - Contains explicit content for mature adults only\.<\/a>/))
 	{
 		// Content filter. Need to bypass it.
-		var sid = sourceCode.match(/<div id="pagetitle"><a href="viewstory.php\?sid=(\d+)">/m)[1];
+		var sid = sourceCode.match(/class='errortext'>Age Consent Required<br \/><a href='viewstory\.php\?sid=(\d+)&amp;ageconsent=ok&amp;warning=\d+'>Ages 18\+ - Contains explicit content for mature adults only\.<\/a>/)[1];
 		linkAdditionInfo = "http://www.yourfanfiction.com/viewstory.php?sid=" + contentFilterSid + "&index=1&ageconsent=ok&warning=5";
 		return true;
 	}
@@ -92,35 +93,39 @@ function zeropad(val, len)
 
 function analyseIndex(sourceCode)
 {  
-	var result;
-	
-	//Use RegEx to look for storyname, authorname....
-  result = sourceCode.match(/<div id="pagetitle"><a href="viewstory.php\?sid=(\d+)">([^<]+)<\/a> by <a href="viewuser.php\?uid=\d+">([^<]+)</);
-  
-  var storyid = result[1];
-  
-	//Storyname
-	//storyName = sourceCode.match(/var title_t = '(.*)';/)[1];
-	storyName = result[2];
-   
-	//Authorname
-	authorName = result[3];
+	try {
+		//Use RegEx to look for storyname, authorname....
+		var result = sourceCode.match(/<div id="pagetitle"><a href="viewstory.php\?sid=(\d+)">([^<]+)<\/a> by <a href="viewuser.php\?uid=\d+">([^<]+)</);
+	  
+		var storyid = result[1];
+	  
+		//Storyname
+		//storyName = sourceCode.match(/var title_t = '(.*)';/)[1];
+		storyName = result[2];
+	   
+		//Authorname
+		authorName = result[3];
+	} catch (e) { }
 
-	var catspan = sourceCode.match( /<span class="label">Categories:<\/span> ([\s\S]+?)<\/span/m )[1];
+	try {
+		var catspan = sourceCode.match( /<span class="label">Categories:<\/span> ([\s\S]+?)<\/span/m )[1];
 
-	var cats = [];
-	var pat = /<a.+?>([^<]+)</mg;
-	while( result = pat.exec(catspan) )
-	{
-		cats.push(result[1]);
-	}
-	//Category
-	category = cats.join(',');
+		var cats = [];
+		var pat = /<a.+?>([^<]+)</mg;
+		while( result = pat.exec(catspan) )
+		{
+			cats.push(result[1]);
+		}
+		//Category
+		category = cats.join(',');
+	} catch (e) { }
 
-	//Updated '02/20/12';
-	result = sourceCode.match(/<span class="label">Updated:<\/span> (\d+ \w+ \d+)/);
-	var udate = new Date(result[1]);
-	lastUpdated = '' + zeropad(udate.getMonth() + 1, 2) + '/' + zeropad(udate.getDate(), 2) + '/' + udate.getFullYear();
+	try {
+		//Updated '02/20/12';
+		result = sourceCode.match(/<span class="label">Updated:<\/span> (\d+ \w+ \d+)/);
+		var udate = new Date(result[1]);
+		lastUpdated = '' + zeropad(udate.getMonth() + 1, 2) + '/' + zeropad(udate.getDate(), 2) + '/' + udate.getFullYear();
+	} catch (e) { }
 		
 	//Storystatus
 	result = sourceCode.search(/<span class="label">Completed:<\/span> Yes/);
@@ -130,19 +135,27 @@ function analyseIndex(sourceCode)
 	} else {
 		storyStatus = "In Progress";
 	}
-   
-	//Storywords
-	totalWordCount = parseInt(sourceCode.match( /<span class="label">Word count:<\/span> (\d+)/ )[1], 10);
 	
-	//Chaptercount will be set when we extract chapter links and names
-	countOfChapters = parseInt(sourceCode.match( /<span class="label">Chapters: <\/span> (\d+)/ )[1], 10);
+	try {
+		//Storywords
+		totalWordCount = parseInt(sourceCode.match( /<span class="label">Word count:<\/span> (\d+)/ )[1], 10);
+	} catch (e) { }
+	
+	try {	
+		//Chaptercount will be set when we extract chapter links and names
+		countOfChapters = parseInt(sourceCode.match( /<span class="label">Chapters: <\/span> (\d+)/ )[1], 10);
+	} catch (e) { }
+	
+	try {
+		//Summary
+		summary = sourceCode.match(/<span class="label">Summary: <\/span>([\s\S]+?)<br \/>\s*<span/)[1];
+	} catch (e) { }
 
-	//Summary
-	summary = sourceCode.match(/<span class="label">Summary: <\/span>([\s\S]+?)<br \/>\s*<span/)[1];
-   
-	//Storylink (Always to the first chapter)
-	storyLink = "http://www.yourfanfiction.com/viewstory.php?sid=" + storyid + "&chapter=1&ageconsent=ok&warning=5";
-  
+	try {
+		//Storylink (Always to the first chapter)
+		storyLink = "http://www.yourfanfiction.com/viewstory.php?sid=" + storyid + "&chapter=1&ageconsent=ok&warning=5";
+	} catch (e) { }
+	
 	pat = /<b>\d+\. <a href="(viewstory\.php\?sid=\d+&amp;chapter=\d+)">([^<]+)</mg;
 	while( result = pat.exec( sourceCode ) )
 	{
@@ -167,13 +180,16 @@ function analyseChapter(sourceCode) {
 	chapterText = '';
 	
 	// Include author's notes
-	chapterText += sourceCode.match(/<div class='notes'>([\s\S]*?)<\/div>\s*<div id="story">/im)[1];
-	
-	if (chapterText != '')
-		chapterText += '<hr />';
+	match = sourceCode.match(/<div class='notes'>([\s\S]*?)<\/div>\s*<div id="story">/im)
+	if (match) {
+		chapterText += matchNotes[1] + '<hr />';
+	}
 
 	//Chaptertext
-	chapterText += sourceCode.match(/<div id="story">([\s\S]*?)<\/div>\s*<div id="prev">/im)[1];
+	match = sourceCode.match(/<div id="story">([\s\S]*?)<\/div>\s*<div id="prev">/im)
+	if (match) {
+		chapterText += match[1];
+	}
 
 	return true;
 }

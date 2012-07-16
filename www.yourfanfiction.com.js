@@ -1,12 +1,33 @@
-//-----------------------------------
-//---      Script by BitPoet      ---
-//--- Version 1.0, 14. March 2012 ---
-//-----------------------------------
-//------------ Changelog ------------
-//--- Version 1.0 BitPoet         ---
-//--- Initial Version             ---
-//-----------------------------------
-
+/* * *
+ * YourFanfiction plugin for FanFictionDownloader
+ * By Elusive
+ * http://www.yourfanfiction.com
+ *
+ * * *
+ * Based on the HPFanFicArchive plugin by BitPoet (version 1.0)
+ * 
+ * Changes from BitPoet's version are minor, since both sites use the same
+ * engine.
+ *
+ * - URL changes
+ * - YFF does not open TOC for single chapter stories, therefore index=1 must
+ *    be added to the request string
+ * - Date format is DD MMM YYYY, instead of MMMMM DD, YYYY
+ * - Fixed some formatting to match the comments. Date now uses `-` separators,
+ *    not `/`, which could potentially cause an issue with filenames. storyStatus
+ *    now uses "In Progress", as defined by the comments, not "WIP".
+ * - Made sure parseInt() will not bug on leading zero by specifying base 10
+ *    (stupid JavaScript)
+ * - YFF doesn't seem to use the `STARTXXXFICSAVERS` comments, so used another
+ *    way to find content
+ * - Added author's notes block from outside story block
+ * - [BUGGED] Added &ageconsent=ok&warning=5 to request strings to bypass content filters
+ *
+ * * *
+ * This plugin is not affiliated in any way with YourFanfiction nor
+ * FanFictionDownloader.
+ *
+ */
 
 
 //Fill these variables with content but do not modify the variables names!!
@@ -35,8 +56,8 @@ chapterWordCount = 0;		//coontains the count of words for this chapter. Set to 0
 //Check if the URL is the same like the page that you want to support with this script.
 //Return "websiteName" if true, otherwise false. Format the name nicely (e.g. "FanFiction.Net")
 function analyseLink(url) {
-	if(url.indexOf("www.hpfanficarchive.com") != -1)
-		this.websiteName = "HPFanFicArchive";
+	if(url.indexOf("www.yourfanfiction.com") != -1)
+		this.websiteName = "YourFanfiction";
 	return this.websiteName;
 }
 
@@ -44,13 +65,24 @@ function analyseLink(url) {
 //"sourceCode" contains the informations from the link entered by the user into the GUI
 function analyseContent(sourceCode) {
 	// First check if sourceCode contains the story index or a chapter:
-	if( sourceCode.indexOf("STARTAUTHORFICSAVERS") != -1 )
+	// Checking for TOC link because YFF does not have convenient STARTXXXFICSAVERS comments
+	//if( sourceCode.indexOf("STARTAUTHORFICSAVERS") != -1 )
+	if (sourceCode.match(/<a href="viewstory\.php\?sid=\d+&amp;index=1">Table of Contents<\/a>/))
 	{
 		// We're in a chapter, let's look up the story id and fetch the index page
 		var sid = sourceCode.match(/<div id="pagetitle"><a href="viewstory.php\?sid=(\d+)">/m)[1];
-		linkAdditionInfo = "http://www.hpfanficarchive.com/stories/viewstory.php?sid=" + sid;
+		linkAdditionInfo = "http://www.yourfanfiction.com/viewstory.php?sid=" + sid + "&index=1&ageconsent=ok&warning=5";
 		return true;
 	}
+	
+	/*contentFilterSid = sourceCode.match(/class='errortext'>Age Consent Required<br \/><a href='viewstory\.php\?sid=(\d+)&amp;ageconsent=ok&amp;warning=\d+'>Ages 18\+ - Contains explicit content for mature adults only\.<\/a>/)[1];
+	if (contentFilterSid)
+	{
+		// Content filter. Need to bypass it.
+		var sid = sourceCode.match(/<div id="pagetitle"><a href="viewstory.php\?sid=(\d+)">/m)[1];
+		linkAdditionInfo = "http://www.yourfanfiction.com/viewstory.php?sid=" + contentFilterSid + "&index=1&ageconsent=ok&warning=5";
+		return true;
+	}*/
 	
 	return analyseIndex(sourceCode);
 }
@@ -76,7 +108,7 @@ function analyseIndex(sourceCode)
 	//Authorname
 	authorName = result[3];
 
-	var catspan = sourceCode.match( /<span class="label">Categories:<\/span> ((?:.|\r|\n)+?)<\/span/m )[1];
+	var catspan = sourceCode.match( /<span class="label">Categories:<\/span> ([\s\S]+?)<\/span/m )[1];
 
 	var cats = [];
 	var pat = /<a.+?>([^<]+)</mg;
@@ -88,36 +120,36 @@ function analyseIndex(sourceCode)
 	category = cats.join(',');
 
 	//Updated '02-20-12';
-	result = sourceCode.match(/Updated:<\/span> (\w+ \d+, \d+)/);
+	result = sourceCode.match(/<span class="label">Updated:<\/span> (\d+ \w+ \d+)/);
 	var udate = new Date(result[1]);
-	lastUpdated = '' + zeropad(udate.getMonth() + 1, 2) + '/' + zeropad(udate.getDate(), 2) + '/' + udate.getFullYear();
+	lastUpdated = '' + zeropad(udate.getMonth() + 1, 2) + '-' + zeropad(udate.getDate(), 2) + '-' + udate.getFullYear();
 		
 	//Storystatus
-	result = sourceCode.search(/Completed:<\/span> Yes/);
+	result = sourceCode.search(/<span class="label">Completed:<\/span> Yes/);
 	if( result != -1 )
 	{
 		storyStatus = "Completed";
 	} else {
-		storyStatus = "WIP";
+		storyStatus = "In Progress";
 	}
    
 	//Storywords
-	totalWordCount = parseInt(sourceCode.match( />Word count:<\/span> (\d+)/ )[1]);
+	totalWordCount = parseInt(sourceCode.match( /<span class="label">Word count:<\/span> (\d+)/ )[1], 10);
 	
 	//Chaptercount will be set when we extract chapter links and names
-	countOfChapters = parseInt(sourceCode.match( /Chapters: <\/span> (\d+)/ )[1]);
-   
+	countOfChapters = parseInt(sourceCode.match( /<span class="label">Chapters: <\/span> (\d+)/ )[1], 10);
+
 	//Summary
-	summary = sourceCode.match(/Summary: <\/span><p>((?:.|\r?\n)+?)<\/p>/)[1];
+	summary = sourceCode.match(/<span class="label">Summary: <\/span><p>([\s\S]+?)<\/p>/)[1];
    
 	//Storylink (Always to the first chapter)
-	storyLink = "http://www.hpfanficarchive.com/stories/viewstory.php?psid="+storyid;
+	storyLink = "http://www.yourfanfiction.com/viewstory.php?sid=" + storyid + "&chapter=1";//&ageconsent=ok&warning=5";
   
-	pat = /<b>\d+. <a href="(viewstory.php\?sid=\d+&amp;chapter=\d+)">([^<]+)</mg;
+	pat = /<b>\d+\. <a href="(viewstory\.php\?sid=\d+&amp;chapter=\d+)">([^<]+)</mg;
 	while( result = pat.exec( sourceCode ) )
 	{
 		chapterNames.push(result[2]);
-		chapterLinks.push('http://www.hpfanficarchive.com/stories/' + result[1].replace('amp;', ''));
+		chapterLinks.push("http://www.yourfanfiction.com/" + result[1].replace('&amp;', '&')/* + "&ageconsent=ok&warning=5"*/);
 	}
 
    return true;
@@ -133,8 +165,17 @@ function analyseAdditionalContent(sourceCode) {
 //This function is called once for every chapter
 function analyseChapter(sourceCode) {
 
+	// Clear string
+	chapterText = '';
+	
+	// Include author's notes
+	chapterText += sourceCode.match(/<div class='notes'>([\s\S]*?)<\/div>\s+<div id="story">/im)[1];
+	
+	if (chapterText != '')
+		chapterText += '<hr />';
+
 	//Chaptertext
-	chapterText = sourceCode.match(/^<!-- STARTSTORYFICSAVERS -->((?:.|\r|\n)*?)<!-- ENDSTORYFICSAVERS -->/im)[1];
+	chapterText += sourceCode.match(/<div id="story">([\s\S]*?)<\/div>\s+<div id="prev">/im)[1];
 
 	return true;
 }
